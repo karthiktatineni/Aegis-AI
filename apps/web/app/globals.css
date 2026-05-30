@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 42 33% 96%;
+  --foreground: 216 18% 16%;
+  --card: 0 0% 100%;
+  --card-foreground: 216 18% 16%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 216 18% 16%;
+  --primary: 173 66% 31%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 214 15% 90%;
+  --secondary-foreground: 216 18% 16%;
+  --muted: 220 14% 92%;
+  --muted-foreground: 217 9% 42%;
+  --accent: 39 89% 57%;
+  --accent-foreground: 220 24% 15%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 216 16% 84%;
+  --input: 216 16% 84%;
+  --ring: 173 66% 31%;
+}
+
+.dark {
+  --background: 210 13% 9%;
+  --foreground: 40 22% 93%;
+  --card: 210 12% 12%;
+  --card-foreground: 40 22% 93%;
+  --popover: 210 12% 12%;
+  --popover-foreground: 40 22% 93%;
+  --primary: 171 58% 45%;
+  --primary-foreground: 210 16% 9%;
+  --secondary: 214 12% 18%;
+  --secondary-foreground: 40 22% 93%;
+  --muted: 216 11% 17%;
+  --muted-foreground: 218 8% 67%;
+  --accent: 39 88% 61%;
+  --accent-foreground: 210 16% 9%;
+  --destructive: 0 64% 48%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 215 11% 23%;
+  --input: 215 11% 23%;
+  --ring: 171 58% 45%;
+}
+
+* {
+  @apply border-border;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  letter-spacing: 0;
+}
+
+pre {
+  @apply overflow-x-auto rounded-md border bg-muted p-3 text-sm;
+}
+
+code {
+  @apply font-mono;
+}
+
+.hljs {
+  background: transparent;
+  color: inherit;
+}

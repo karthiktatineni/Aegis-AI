@@ -1,0 +1,28 @@
+{
+  "name": "aegis-ai",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Local-first AI platform with chat, memory, RAG, agents, and tools.",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "build:web": "npm --workspace apps/web run build",
+    "lint:web": "npm --workspace apps/web run lint",
+    "typecheck:web": "npm --workspace apps/web run typecheck",
+    "test:web": "npm --workspace apps/web run test",
+    "dev:api": "cd apps/api && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "test:api": "cd apps/api && python -m pytest",
+    "format:api": "cd apps/api && python -m ruff format app tests",
+    "lint:api": "cd apps/api && python -m ruff check app tests",
+    "docker:up": "docker compose up --build"
+  },
+  "engines": {
+    "node": ">=20.11.0",
+    "npm": ">=10.0.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
+  }
+}
