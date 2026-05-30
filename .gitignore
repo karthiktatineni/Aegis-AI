@@ -11,8 +11,7 @@ node_modules/
 out/
 dist/
 coverage/
-data/
-models/
+
 uploads/
 *.db
 *.sqlite3
