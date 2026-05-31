@@ -1,6 +1,6 @@
 import type { Collection, Conversation, Message, ModelStatus } from "@/types/api";
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "https://doubt-jake-continuously-achievement.trycloudflare.com/api/v1";
 
 export function buildApiUrl(path: string) {
   const normalized = path.startsWith("/") ? path : `/${path}`;

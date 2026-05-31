@@ -1,0 +1,383 @@
+# Aegis AI – Local LLM Assistant Platform
+
+## Overview
+
+Aegis AI is a self-hosted Large Language Model platform designed to provide private AI conversations, memory management, document retrieval, agent workflows, and local model inference without depending on external AI APIs.
+
+The platform combines a modern web interface, FastAPI backend, local Transformer-based LLM execution, vector memory storage, Retrieval-Augmented Generation (RAG), and agent-based orchestration into a single architecture.
+
+The primary objective of the project is to create a secure and extensible AI ecosystem where users can run open-source models such as Mistral 7B locally while maintaining full ownership of data and conversations.
+
+---
+
+# Project Objectives
+
+* Run open-source LLMs locally
+* Eliminate dependency on cloud AI providers
+* Support conversational memory
+* Enable Retrieval-Augmented Generation (RAG)
+* Provide document-based knowledge retrieval
+* Create an extensible AI agent architecture
+* Support future tool integrations
+* Maintain user privacy through local execution
+
+---
+
+# Core Technologies
+
+## Frontend
+
+* Next.js 15
+* React
+* TypeScript
+* Tailwind CSS
+* Server Components
+* Streaming Chat UI
+
+## Backend
+
+* FastAPI
+* Python
+* SQLAlchemy
+* Pydantic
+* Uvicorn
+
+## AI Layer
+
+* Hugging Face Transformers
+* Mistral-7B-Instruct-v0.3
+* Sentence Transformers
+* Local Embedding Models
+
+## Memory & Retrieval
+
+* ChromaDB
+* Vector Embeddings
+* Semantic Search
+* Conversation Memory
+
+## Database
+
+* SQLite
+* PostgreSQL (optional)
+
+---
+
+# System Architecture
+
+The system follows a multi-layer architecture.
+
+## Presentation Layer
+
+The frontend is responsible for:
+
+* User interaction
+* Chat interface
+* Streaming responses
+* Conversation management
+* Model status display
+
+The frontend communicates with the backend through REST APIs and streaming endpoints.
+
+---
+
+## Application Layer
+
+The FastAPI backend serves as the central orchestration layer.
+
+Responsibilities include:
+
+* Conversation management
+* User session handling
+* Agent execution
+* Memory retrieval
+* Prompt construction
+* Model invocation
+* Tool execution
+
+---
+
+## AI Inference Layer
+
+The AI layer loads local models using Hugging Face Transformers.
+
+Supported models include:
+
+* Mistral 7B Instruct
+* Qwen 2.5 7B
+
+The inference layer:
+
+* Loads tokenizer
+* Loads model weights
+* Generates responses
+* Streams output tokens
+
+---
+
+## Memory Layer
+
+The memory subsystem stores conversational knowledge.
+
+Responsibilities:
+
+* Summarize conversations
+* Generate embeddings
+* Store vectors
+* Retrieve relevant memories
+
+Components:
+
+* Sentence Transformers
+* ChromaDB
+* Semantic Search Engine
+
+---
+
+## Storage Layer
+
+Responsible for persistence.
+
+Stores:
+
+* Conversations
+* Messages
+* Documents
+* Memory embeddings
+* User data
+
+Current implementation:
+
+* SQLite
+
+Future support:
+
+* PostgreSQL
+
+---
+
+# High-Level Request Flow
+
+1. User sends a message
+2. Frontend creates API request
+3. FastAPI receives request
+4. Conversation history is loaded
+5. Memory system retrieves relevant context
+6. Prompt is assembled
+7. Local LLM receives prompt
+8. Model generates tokens
+9. Tokens are streamed back
+10. Response stored in database
+11. Embeddings generated
+12. Memory stored in vector database
+
+---
+
+# Detailed Architecture Flow
+
+```text
+┌─────────────────────┐
+│      User UI        │
+│  Next.js Frontend   │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│     FastAPI API     │
+│   Route Handlers    │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Conversation Layer  │
+│ Message Management  │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│   Agent Planner     │
+│ Task Orchestration  │
+└──────────┬──────────┘
+           │
+ ┌─────────┴─────────┐
+ │                   │
+ ▼                   ▼
+Memory Service    Tool Service
+ │                   │
+ ▼                   ▼
+ChromaDB        External Tools
+Embeddings      Web Search
+ │
+ ▼
+Sentence
+Transformers
+ │
+ ▼
+┌─────────────────────┐
+│  Prompt Builder     │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Mistral 7B Model    │
+│ Transformers API    │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Streamed Response   │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Conversation Store  │
+│ SQLite/PostgreSQL   │
+└─────────────────────┘
+```
+
+---
+
+# Backend Structure
+
+```text
+apps/api
+│
+├── app
+│   ├── api
+│   │   └── v1
+│   │       └── routes
+│   │
+│   ├── core
+│   │   ├── config.py
+│   │   └── settings
+│   │
+│   ├── services
+│   │   ├── ai
+│   │   ├── memory
+│   │   ├── rag
+│   │   ├── agents
+│   │   └── tools
+│   │
+│   ├── models
+│   ├── schemas
+│   └── db
+│
+└── data
+```
+
+---
+
+# Frontend Structure
+
+```text
+apps/web
+│
+├── app
+├── components
+│   ├── chat
+│   ├── sidebar
+│   ├── ui
+│
+├── lib
+│   ├── api.ts
+│   └── utilities
+│
+└── styles
+```
+
+---
+
+# AI Workflow
+
+## Step 1
+
+User sends prompt.
+
+## Step 2
+
+Conversation history is loaded.
+
+## Step 3
+
+Memory engine retrieves relevant context.
+
+## Step 4
+
+Prompt is enhanced using retrieved memories.
+
+## Step 5
+
+Prompt is sent to Mistral 7B.
+
+## Step 6
+
+Model generates response.
+
+## Step 7
+
+Response is streamed to frontend.
+
+## Step 8
+
+Conversation is stored.
+
+## Step 9
+
+Embeddings are created.
+
+## Step 10
+
+Memory database is updated.
+
+---
+
+# Key Features
+
+## Local AI Inference
+
+Runs fully on local hardware.
+
+## Conversation Memory
+
+Remembers past interactions.
+
+## RAG Support
+
+Retrieves relevant information from stored documents.
+
+## Agent Architecture
+
+Supports autonomous task planning.
+
+## Streaming Responses
+
+Real-time token generation.
+
+## Extensible Tool System
+
+Supports future integrations.
+
+## Private Deployment
+
+No dependency on external AI APIs.
+
+---
+
+# Future Enhancements
+
+* Multi-agent workflows
+* Voice interaction
+* File upload understanding
+* Code execution sandbox
+* Web search integration
+* Fine-tuning support
+* Multi-model routing
+* GPU optimization with vLLM
+* Distributed inference
+* Knowledge graph integration
+
+---
+
+# Conclusion
+
+Aegis AI is a full-stack local AI platform that combines modern web technologies, FastAPI services, Transformer-based LLMs, semantic memory, and retrieval systems into a unified architecture. The project demonstrates how open-source LLMs can be deployed privately while maintaining scalability, extensibility, and ownership of user data.
