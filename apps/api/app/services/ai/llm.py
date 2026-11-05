@@ -70,18 +70,33 @@ class LocalTransformerLLM:
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         dtype = "auto"
-        if self.settings.model_dtype == "float16":
+        quant_config = None
+        if self.settings.model_dtype in ["4bit", "int4", "q4"]:
+            from transformers import BitsAndBytesConfig
+            quant_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_quant_type="nf4",
+            )
+            dtype = torch.float16
+        elif self.settings.model_dtype == "float16":
             dtype = torch.float16
         elif self.settings.model_dtype == "bfloat16":
             dtype = torch.bfloat16
 
         model_id_or_path = self.model_id_or_path
         self._tokenizer = AutoTokenizer.from_pretrained(model_id_or_path)
+        load_kwargs = {
+            "device_map": self.settings.model_device,
+            "torch_dtype": dtype,
+            "low_cpu_mem_usage": True,
+        }
+        if quant_config is not None:
+            load_kwargs["quantization_config"] = quant_config
+
         self._model = AutoModelForCausalLM.from_pretrained(
             model_id_or_path,
-            device_map=self.settings.model_device,
-            torch_dtype=dtype,
-            low_cpu_mem_usage=True,
+            **load_kwargs,
         )
         self._torch = torch
         self._loaded = True

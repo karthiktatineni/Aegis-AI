@@ -36,12 +36,12 @@ export function ServerStatusGuard() {
 
   React.useEffect(() => {
     void check();
-    // Poll every 5s while spinning up, or every 45s when connected
+    // Poll every 5s while spinning up, or every 30s when connected
     const interval = setInterval(
       () => {
         void check();
       },
-      status === "spinning_up" ? 5000 : 45000
+      status === "spinning_up" ? 5000 : 30000
     );
     return () => clearInterval(interval);
   }, [check, status]);
@@ -61,7 +61,7 @@ export function ServerStatusGuard() {
                 Server is spinning up, please wait till the server is connected...
               </span>
               <span className="text-xs text-amber-700 dark:text-amber-300">
-                (GPU cold start in progress — saves credits when idle, sleeps after 10 mins)
+                (T4 GPU cold start in progress • 2m idle shutdown • 10m hard session cutoff)
               </span>
             </div>
           </div>
@@ -91,11 +91,11 @@ export function ServerStatusGuard() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Server Connected (GPU Ready)</span>
+            <span>Server Connected (T4 GPU Ready)</span>
           </div>
           <span className="text-muted-foreground hidden sm:inline">•</span>
           <span className="text-muted-foreground hidden sm:flex items-center gap-1">
-            <Clock className="h-3 w-3" /> Auto-sleep: 10m idle timeout
+            <Clock className="h-3 w-3" /> Auto-sleep: 2m idle • Max 10m hard cutoff
           </span>
         </div>
 

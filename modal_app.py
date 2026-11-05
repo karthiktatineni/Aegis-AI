@@ -3,11 +3,14 @@
 Key Features:
 1. One-time pre-download function using HF token (via HF_TOKEN env var / Modal secret)
    cached to persistent modal.Volume ("aegis-models").
-2. Serverless GPU: Cold-start on demand (keep_warm=0), consumes 0 credits when idle.
+2. Serverless GPU: Cold-start on demand (min_containers=0), consumes 0 credits when idle.
 3. Strict 5 requests per day limit tracked across cold starts via modal.Dict ("aegis-quota").
-4. Sleeps after 10 minutes (scaledown_window=600, timeout=600) even during active sessions
-   to guarantee credits are never wasted.
-5. Serves full FastAPI backend (streaming SSE, RAG, memory, tools, agents).
+4. Fast 2-Minute Inactivity Auto-Shutdown (scaledown_window=120) to prevent idle credit waste.
+5. Strict 10-Minute Hard Session Cutoff: The instance forcefully shuts down after 10 minutes
+   total runtime, even if active requests or processes are running, guaranteeing credits
+   are never drained.
+6. Runs on cost-effective Nvidia T4 GPU (16GB VRAM) with 4-bit quantization.
+7. Serves full FastAPI backend (streaming SSE, RAG, memory, tools, agents).
 
 Usage:
     # 1. First-time: Download model weights to Modal Volume
@@ -15,15 +18,14 @@ Usage:
 
     # 2. Deploy serverless GPU app
     modal deploy modal_app.py
-
-    # 3. Test locally in ephemeral container
-    modal serve modal_app.py
 """
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
+import threading
+import time
 
 import modal
 
@@ -40,6 +42,7 @@ data_volume = modal.Volume.from_name("aegis-data", create_if_missing=True)
 # Persistent dictionary for tracking the 5 requests/day credit-guard across containers
 daily_quota_dict = modal.Dict.from_name("aegis-daily-quota", create_if_missing=True)
 
+
 def _get_hf_token() -> str:
     token = os.getenv("HF_TOKEN", "")
     if not token:
@@ -54,6 +57,8 @@ def _get_hf_token() -> str:
 
 HF_TOKEN = _get_hf_token()
 DAILY_REQUEST_LIMIT = 5
+MAX_CONTAINER_LIFETIME_SECONDS = 600  # 10 minutes hard max runtime
+INACTIVITY_TIMEOUT_SECONDS = 120  # 2 minutes of inactivity shuts down the instance
 
 MODELS = {
     "mistral": "mistralai/Mistral-7B-Instruct-v0.3",
@@ -142,7 +147,7 @@ def download_models(model: str = "mistral", token: str | None = None):
 # Quota Helper Functions (Only 5 requests per day)
 # ---------------------------------------------------------------------------
 def _today_utc() -> str:
-    from datetime import timezone, datetime
+    from datetime import datetime, timezone
     return datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
 
@@ -169,24 +174,28 @@ def increment_daily_quota() -> int:
     return new_count
 
 
+# Track container launch timestamp for hard 10-minute cutoff
+CONTAINER_START_TIME = time.time()
+
+
 # ---------------------------------------------------------------------------
-# 2. Serverless GPU ASGI App
+# 2. Serverless GPU ASGI App (Nvidia T4, 2m idle shutdown, 10m hard session cutoff)
 # ---------------------------------------------------------------------------
 @app.function(
     image=image,
-    gpu="A10G",  # Fast Nvidia A10G 24GB GPU
+    gpu="T4",  # Cost-effective Nvidia T4 GPU (saves ~85% credits vs A10G)
     volumes={"/models": model_volume, "/data": data_volume},
     # COLD START ONLY WHEN REQUEST COMES:
     min_containers=0,  # 0 containers running when idle = 0 credits wasted
-    # SLEEP AFTER 10 MINUTES IDLE:
-    scaledown_window=600,  # 600 seconds = 10 minutes idle timeout
-    # SESSION DURATION LIMIT:
-    timeout=600,  # 10 minutes hard timeout to save credits even while active
+    # SHUTDOWN AFTER 2 MINUTES OF INACTIVITY:
+    scaledown_window=120,  # 120 seconds = 2 minutes of idle shuts down instance
+    # MAX CONTAINER TIMEOUT:
+    timeout=600,  # 10 minutes execution timeout
     max_containers=1,  # Strictly serialize to prevent concurrency credit burn
 )
 @modal.asgi_app()
 def fastapi_app():
-    """Serves Aegis AI on Modal GPU."""
+    """Serves Aegis AI on Modal T4 GPU."""
     import sys
     sys.path.insert(0, "/root")
 
@@ -195,10 +204,23 @@ def fastapi_app():
     os.environ["LLM_PROVIDER"] = "transformers" if Path("/models/mistral").exists() or Path("/models/qwen").exists() else "mock"
     os.environ["LOCAL_MODEL_ID"] = "/models/mistral" if Path("/models/mistral").exists() else "mistralai/Mistral-7B-Instruct-v0.3"
     os.environ["LOCAL_EMBEDDING_MODEL"] = "/models/embeddings" if Path("/models/embeddings").exists() else "sentence-transformers/all-MiniLM-L6-v2"
+    os.environ["MODEL_DTYPE"] = "4bit"  # 4-bit quantization for optimal T4 16GB memory and speed
     os.environ["DATABASE_URL"] = "sqlite+aiosqlite:////data/aegis.db"
     os.environ["CHROMA_PATH"] = "/data/chroma"
     os.environ["UPLOAD_DIR"] = "/data/uploads"
     os.environ["WORKSPACE_ROOT"] = "/data/workspace"
+
+    # Start background watchdog: Force shutdown after 10 minutes total runtime under any circumstances
+    def hard_cutoff_watchdog():
+        time.sleep(MAX_CONTAINER_LIFETIME_SECONDS)
+        print(
+            f"[CREDIT GUARD] 10-minute hard runtime limit reached ({MAX_CONTAINER_LIFETIME_SECONDS}s). "
+            f"Terminating instance immediately to prevent credit waste."
+        )
+        os._exit(0)
+
+    watchdog = threading.Thread(target=hard_cutoff_watchdog, daemon=True)
+    watchdog.start()
 
     from fastapi import FastAPI, HTTPException, Request, Response
     from fastapi.middleware.cors import CORSMiddleware
@@ -213,10 +235,16 @@ def fastapi_app():
         allow_headers=["*"],
     )
 
-    # Middleware to enforce the 5 requests/day limit on expensive inference endpoints
+    # Middleware: Enforce 5 reqs/day quota AND hard 10-minute session lifetime
     @aegis_fastapi.middleware("http")
-    async def quota_middleware(request: Request, call_next):
-        # Apply 5 requests/day quota strictly on chat stream and message generation
+    async def credit_guard_middleware(request: Request, call_next):
+        # 1. Check hard container lifetime (10 minutes total cutoff)
+        elapsed = time.time() - CONTAINER_START_TIME
+        if elapsed >= MAX_CONTAINER_LIFETIME_SECONDS:
+            print("[CREDIT GUARD] Reached 10-minute session cap during request. Terminating.")
+            os._exit(0)
+
+        # 2. Check 5 requests/day quota on expensive inference endpoints
         if request.url.path.endswith("/stream") or request.url.path.endswith("/messages") or request.url.path.endswith("/agents/run"):
             allowed, used, remaining = check_daily_quota()
             if not allowed:
@@ -234,14 +262,19 @@ def fastapi_app():
         response = await call_next(request)
         return response
 
-    # Quota endpoint
+    # Status endpoint with live session timer and quota info
     @aegis_fastapi.get("/api/v1/modal-status")
     def modal_status():
         allowed, used, remaining = check_daily_quota()
+        elapsed = int(time.time() - CONTAINER_START_TIME)
+        time_left = max(0, MAX_CONTAINER_LIFETIME_SECONDS - elapsed)
         return {
             "status": "online",
-            "gpu": "A10G",
-            "idle_sleep_minutes": 10,
+            "gpu": "T4",
+            "inactivity_shutdown_seconds": INACTIVITY_TIMEOUT_SECONDS,
+            "max_runtime_seconds": MAX_CONTAINER_LIFETIME_SECONDS,
+            "session_elapsed_seconds": elapsed,
+            "session_remaining_seconds": time_left,
             "daily_limit": DAILY_REQUEST_LIMIT,
             "requests_used_today": used,
             "requests_remaining_today": remaining,
