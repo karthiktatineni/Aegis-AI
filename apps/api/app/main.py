@@ -35,3 +35,14 @@ app.add_middleware(
 )
 
 app.include_router(api_v1_router, prefix=settings.api_v1_prefix)
+
+
+@app.get("/health")
+async def root_health() -> dict:
+    return {
+        "status": "ok",
+        "service": settings.app_name,
+        "version": "0.1.0",
+        "gpu_standby": True,
+        "daily_limit": 5,
+    }

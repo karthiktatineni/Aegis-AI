@@ -16,3 +16,7 @@ uploads/
 *.db
 *.sqlite3
 *.log
+data/
+workspace/
+models/
+quota_usage.json

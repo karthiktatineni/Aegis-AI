@@ -308,6 +308,31 @@ For low-memory GPUs, use quantized GGUF or 4-bit variants.
 
 ---
 
+# Modal AI Serverless GPU Deployment
+
+Aegis AI supports deployment to [Modal](https://modal.com) with on-demand GPU acceleration and strict credit-saving controls:
+
+- **Serverless Cold-Start (`keep_warm=0`):** The GPU spins up **only when an active request arrives**, consuming 0 credits while idle.
+- **Auto-Sleep:** Containers automatically sleep after **10 minutes** of inactivity (`scaledown_window=600`) or session duration.
+- **Credit Protection (5 Requests/Day):** Caps usage to 5 requests per day, preventing unexpected credit consumption.
+- **Spinning Up UI Indicator:** The Next.js frontend automatically displays a live server status banner while the GPU cold-starts (~30-60s).
+- **Persistent Weights Volume:** Downloads Mistral 7B / Qwen 2.5 7B once using Hugging Face token into `modal.Volume("aegis-models")`.
+
+### Deploying to Modal:
+
+```bash
+# 1. Pre-download model to Modal persistent volume (one-time)
+modal run modal_app.py::download_models --model mistral
+
+# 2. Deploy the serverless GPU app
+modal deploy modal_app.py
+
+# 3. Set your deployed URL in apps/web/.env.local:
+# NEXT_PUBLIC_API_URL=https://<your-subdomain>.modal.run/api/v1
+```
+
+---
+
 # Docker Deployment
 
 ```bash
@@ -339,9 +364,3 @@ Services:
 
 ---
 
-
-# Author
-
-**Karthik Tatineni**
-
-GitHub: https://github.com/karthiktatineni

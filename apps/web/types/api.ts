@@ -53,3 +53,20 @@ export type ModelStatus = {
   device: string;
   supported: string[];
 };
+
+export type QuotaInfo = {
+  limit: number;
+  used_today: number;
+  remaining: number;
+  is_exceeded: boolean;
+  date_utc?: string;
+  resets_in_seconds?: number;
+};
+
+export type ServerHealth = {
+  status: string;
+  service: string;
+  version: string;
+  gpu_standby?: boolean;
+  daily_limit?: number;
+};

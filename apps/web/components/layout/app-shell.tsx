@@ -7,6 +7,7 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { ServerStatusGuard } from "@/components/layout/server-status-guard";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -107,6 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Button>
           </div>
         </header>
+        <ServerStatusGuard />
         <main className="min-h-[calc(100vh-4rem)]">{children}</main>
       </div>
     </div>

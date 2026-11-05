@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import db_session
+from app.core.quota import get_quota_manager
 from app.core.security import CurrentUser, get_current_user
 from app.db.repositories.conversations import ConversationRepository
 from app.schemas.chat import (
@@ -104,10 +105,21 @@ async def send_message(
     session: AsyncSession = Depends(db_session),
     user: CurrentUser = Depends(get_current_user),
 ) -> MessageRead:
+    quota = get_quota_manager()
+    if not quota.can_consume():
+        status = quota.get_status()
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Daily limit reached: Aegis AI is configured to allow only {quota.limit} requests per day "
+                f"to conserve GPU credits ({status['used_today']}/{quota.limit} used). Resets at midnight UTC."
+            ),
+        )
     repository = ConversationRepository(session)
     conversation = await repository.get_for_user(conversation_id, user.id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+    quota.consume()
     await repository.add_message(conversation.id, "user", payload.message)
     rag = RAGService(session)
     memory = MemoryService(session)
@@ -132,10 +144,22 @@ async def stream_message(
     session: AsyncSession = Depends(db_session),
     user: CurrentUser = Depends(get_current_user),
 ) -> StreamingResponse:
+    quota = get_quota_manager()
+    if not quota.can_consume():
+        status = quota.get_status()
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Daily limit reached: Aegis AI is configured to allow only {quota.limit} requests per day "
+                f"to conserve GPU credits ({status['used_today']}/{quota.limit} used). Resets at midnight UTC."
+            ),
+        )
     repository = ConversationRepository(session)
     conversation = await repository.get_for_user(conversation_id, user.id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
+
+    quota.consume()
 
     async def events() -> AsyncIterator[str]:
         await repository.add_message(conversation.id, "user", payload.message)

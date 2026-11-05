@@ -44,6 +44,7 @@ class ConversationRepository(Repository[Conversation]):
 
     async def create(self, user_id: str, title: str = "New conversation") -> Conversation:
         conversation = Conversation(user_id=user_id, title=title)
+        conversation.messages = []
         self.session.add(conversation)
         await self.session.flush()
         return conversation

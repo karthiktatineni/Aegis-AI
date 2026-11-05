@@ -27,5 +27,9 @@ def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 160) -> list[Te
             index += 1
         if end >= len(cleaned):
             break
-        start = max(end - overlap, 0)
+        # Ensure start always strictly advances to guarantee termination
+        next_start = max(end - overlap, start + 1)
+        if next_start <= start:
+            next_start = start + 1
+        start = next_start
     return chunks

@@ -50,4 +50,8 @@ def get_embedding_service() -> EmbeddingService:
     settings = get_settings()
     if settings.llm_provider.lower() == "mock":
         return HashEmbeddingService()
-    return SentenceTransformerEmbeddingService(settings)
+    try:
+        import sentence_transformers
+        return SentenceTransformerEmbeddingService(settings)
+    except ImportError:
+        return HashEmbeddingService()

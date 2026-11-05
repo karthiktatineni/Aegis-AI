@@ -31,6 +31,7 @@ export function ChatConsole() {
   const [input, setInput] = React.useState("");
   const [search, setSearch] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [serverSpinningUp, setServerSpinningUp] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const refresh = React.useCallback(async (query = "") => {
@@ -83,7 +84,11 @@ export function ChatConsole() {
         active.id,
         { message },
         {
+          onStatusChange: (status) => {
+            setServerSpinningUp(status === "spinning_up");
+          },
           onToken: (token) => {
+            setServerSpinningUp(false);
             setActive((conversation) => {
               if (!conversation) return conversation;
               return {
@@ -95,14 +100,17 @@ export function ChatConsole() {
             });
           },
           onDone: () => {
+            setServerSpinningUp(false);
             void refresh(search);
           }
         }
       );
     } catch (err) {
+      setServerSpinningUp(false);
       setError(err instanceof Error ? err.message : "Streaming failed");
     } finally {
       setLoading(false);
+      setServerSpinningUp(false);
     }
   }
 
@@ -156,9 +164,15 @@ export function ChatConsole() {
                 <MessageBubble key={message.id} message={message} onUpdate={updateActiveMessage} />
               ))}
               {loading && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="size-4 animate-spin" />
-                  Generating
+                <div className="flex items-center gap-2.5 rounded-lg border border-primary/20 bg-muted/40 p-3 text-sm text-foreground">
+                  <Loader2 className="size-4 animate-spin text-primary" />
+                  {serverSpinningUp ? (
+                    <span>
+                      <strong className="font-semibold text-amber-500 dark:text-amber-400">Server is spinning up...</strong> Please wait till the GPU server is connected (cold starts take ~30-60s to save credits).
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Generating streaming response...</span>
+                  )}
                 </div>
               )}
             </div>

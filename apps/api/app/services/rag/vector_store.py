@@ -22,17 +22,32 @@ class ChromaVectorStore:
         self.client = chromadb.PersistentClient(path=self.settings.chroma_path)
 
     def _collection(self, collection_id: str):
-        return self.client.get_or_create_collection(name=f"kb_{collection_id}")
+        # Chroma collection names must be 3-63 characters alphanumeric, underscore or hyphen
+        clean_name = f"kb_{collection_id.replace('-', '_')}"[:63]
+        return self.client.get_or_create_collection(name=clean_name)
 
     def upsert(self, collection_id: str, records: list[VectorRecord]) -> None:
         if not records:
             return
         collection = self._collection(collection_id)
+        # Ensure metadata values are flat and primitive (string, int, float, bool)
+        clean_metadatas = []
+        for r in records:
+            clean_meta = {}
+            for k, v in r.metadata.items():
+                if isinstance(v, (str, int, float, bool)):
+                    clean_meta[k] = v
+                elif v is None:
+                    clean_meta[k] = ""
+                else:
+                    clean_meta[k] = str(v)
+            clean_metadatas.append(clean_meta)
+
         collection.upsert(
             ids=[record.id for record in records],
             documents=[record.content for record in records],
             embeddings=[record.embedding for record in records],
-            metadatas=[record.metadata for record in records],
+            metadatas=clean_metadatas,
         )
 
     def query(
@@ -45,9 +60,12 @@ class ChromaVectorStore:
         citations: list[Citation] = []
         for collection_id in collection_ids:
             collection = self._collection(collection_id)
+            if collection.count() == 0:
+                continue
+            effective_limit = min(limit, collection.count())
             result = collection.query(
                 query_embeddings=[query_embedding],
-                n_results=limit,
+                n_results=effective_limit,
                 include=["documents", "metadatas", "distances"],
             )
             ids = result.get("ids", [[]])[0]
@@ -59,7 +77,7 @@ class ChromaVectorStore:
                 metadata_tags = str(metadata.get("tags", "")).split(",")
                 if tags and not set(tags).intersection(set(metadata_tags)):
                     continue
-                distance = float(distances[index] or 0.0)
+                distance = float(distances[index] if index < len(distances) else 0.0)
                 citations.append(
                     Citation(
                         document_id=str(metadata.get("document_id", "")),

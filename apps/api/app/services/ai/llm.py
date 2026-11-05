@@ -121,5 +121,10 @@ class LocalTransformerLLM:
 def get_llm_provider() -> LLMProvider:
     settings = get_settings()
     if settings.llm_provider.lower() == "transformers":
-        return LocalTransformerLLM(settings)
+        try:
+            import torch
+            import transformers
+            return LocalTransformerLLM(settings)
+        except ImportError:
+            return MockLLM()
     return MockLLM()
