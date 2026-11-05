@@ -40,8 +40,19 @@ data_volume = modal.Volume.from_name("aegis-data", create_if_missing=True)
 # Persistent dictionary for tracking the 5 requests/day credit-guard across containers
 daily_quota_dict = modal.Dict.from_name("aegis-daily-quota", create_if_missing=True)
 
-# Hugging Face token from environment variable or Modal secret
-HF_TOKEN = os.getenv("HF_TOKEN", "")
+def _get_hf_token() -> str:
+    token = os.getenv("HF_TOKEN", "")
+    if not token:
+        env_file = Path(".env")
+        if env_file.exists():
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                if line.startswith("HF_TOKEN="):
+                    token = line.split("=", 1)[1].strip()
+                    break
+    return token
+
+
+HF_TOKEN = _get_hf_token()
 DAILY_REQUEST_LIMIT = 5
 
 MODELS = {
@@ -97,7 +108,7 @@ def download_models(model: str = "mistral", token: str | None = None):
     """
     from huggingface_hub import snapshot_download
 
-    token = token or os.getenv("HF_TOKEN") or HF_TOKEN
+    token = token or _get_hf_token()
     repo_id = MODELS.get(model, model)
     target_dir = Path("/models") / model
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -166,12 +177,12 @@ def increment_daily_quota() -> int:
     gpu="A10G",  # Fast Nvidia A10G 24GB GPU
     volumes={"/models": model_volume, "/data": data_volume},
     # COLD START ONLY WHEN REQUEST COMES:
-    keep_warm=0,  # 0 containers running when idle = 0 credits wasted
+    min_containers=0,  # 0 containers running when idle = 0 credits wasted
     # SLEEP AFTER 10 MINUTES IDLE:
     scaledown_window=600,  # 600 seconds = 10 minutes idle timeout
     # SESSION DURATION LIMIT:
     timeout=600,  # 10 minutes hard timeout to save credits even while active
-    concurrency_limit=1,  # Strictly serialize to prevent concurrency credit burn
+    max_containers=1,  # Strictly serialize to prevent concurrency credit burn
 )
 @modal.asgi_app()
 def fastapi_app():
