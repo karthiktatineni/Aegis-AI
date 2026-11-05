@@ -20,9 +20,16 @@ from app.services.ai.llm import ModelNotReadyError, get_llm_provider
 from app.services.ai.prompts import build_chat_prompt
 from app.services.memory.service import MemoryService
 from app.services.rag.service import RAGService
+from app.services.tools.web_search import fetch_realtime_news
 from app.utils.sse import sse_event
 
 router = APIRouter()
+
+
+def should_fetch_news(message: str) -> bool:
+    q = message.lower()
+    keywords = ["news", "latest", "headline", "headlines", "trending", "current events", "what happened", "recent update"]
+    return any(kw in q for kw in keywords)
 
 
 @router.get("/conversations", response_model=list[ConversationRead])
@@ -138,7 +145,8 @@ async def send_message(
     memory = MemoryService(session)
     citations = await rag.search(payload.message, payload.collection_ids) if payload.use_rag else []
     memories = await memory.retrieve_relevant(user.id, payload.message) if payload.use_memory else []
-    prompt = build_chat_prompt(conversation.messages, payload.message, memories, citations)
+    web_results = await fetch_realtime_news(payload.message) if should_fetch_news(payload.message) else []
+    prompt = build_chat_prompt(conversation.messages, payload.message, memories, citations, web_results)
     response = await get_llm_provider().complete(prompt)
     assistant_message = await repository.add_message(
         conversation.id,
@@ -180,7 +188,8 @@ async def stream_message(
         memory = MemoryService(session)
         citations = await rag.search(payload.message, payload.collection_ids) if payload.use_rag else []
         memories = await memory.retrieve_relevant(user.id, payload.message) if payload.use_memory else []
-        prompt = build_chat_prompt(conversation.messages, payload.message, memories, citations)
+        web_results = await fetch_realtime_news(payload.message) if should_fetch_news(payload.message) else []
+        prompt = build_chat_prompt(conversation.messages, payload.message, memories, citations, web_results)
         yield sse_event("citations", {"citations": [citation.model_dump() for citation in citations]})
         chunks: list[str] = []
         try:

@@ -34,6 +34,12 @@ class MemoryService:
         if not meaningful:
             return ""
 
+        # Avoid storing pure casual greetings or short pleasantries as long-term memories
+        all_text = " ".join(m.content.lower() for m in messages if m.role != "system")
+        tokens = set(re.findall(r"\w+", all_text))
+        if tokens and tokens.issubset({"hello", "hi", "hey", "hola", "sup", "howdy", "greetings", "thanks", "ok", "okay"}):
+            return ""
+
         # Build structured memory summary preserving key insights
         recent = meaningful[-6:]  # Focus on key conversation exchange
         summary_text = " | ".join(recent)
@@ -69,6 +75,14 @@ class MemoryService:
             "hello!", "hi!", "hey!", "what's up", "whats up"
         }
         if cleaned_query in casual_greetings or len(cleaned_query) <= 2:
+            return []
+
+        # Skip long-term memory retrieval for follow-up questions referencing immediate chat continuity
+        follow_up_starters = (
+            "and ", "then ", "what about", "how about", "why ", "code for it",
+            "the code", "what is the code", "show me", "explain that", "do that"
+        )
+        if cleaned_query.startswith(follow_up_starters) or cleaned_query in ("code", "the code", "how", "why"):
             return []
 
         memories = await self.repository.list_memories(user_id, scope="long_term")

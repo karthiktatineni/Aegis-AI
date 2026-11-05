@@ -35,11 +35,15 @@ export function ChatConsole() {
   const [serverSpinningUp, setServerSpinningUp] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
   const scrollToBottom = React.useCallback((behavior: ScrollBehavior = "smooth") => {
-    messagesEndRef.current?.scrollIntoView({ behavior });
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior,
+      });
+    }
   }, []);
 
   // Timer for request duration
@@ -259,7 +263,6 @@ export function ChatConsole() {
                   )}
                 </div>
               )}
-              <div ref={messagesEndRef} className="h-1" />
             </div>
           )}
         </div>
