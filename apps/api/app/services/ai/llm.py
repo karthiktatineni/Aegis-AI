@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncIterator
 from functools import lru_cache
 from pathlib import Path
+import threading
 from threading import Thread
 from typing import Protocol
 
@@ -40,6 +41,8 @@ class MockLLM:
 
 
 class LocalTransformerLLM:
+    _load_lock = threading.Lock()
+
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self._loaded = False
@@ -64,50 +67,51 @@ class LocalTransformerLLM:
         return self.settings.local_model_id
 
     def _ensure_loaded(self) -> None:
-        if self._loaded:
-            return
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        with self._load_lock:
+            if self._loaded:
+                return
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
 
-        dtype = "auto"
-        quant_config = None
-        if self.settings.model_dtype in ["4bit", "int4", "q4"]:
-            from transformers import BitsAndBytesConfig
-            quant_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_use_double_quant=True,
+            dtype = "auto"
+            quant_config = None
+            if self.settings.model_dtype in ["4bit", "int4", "q4"]:
+                from transformers import BitsAndBytesConfig
+                quant_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.float16,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_use_double_quant=True,
+                )
+                dtype = torch.float16
+            elif self.settings.model_dtype == "float16":
+                dtype = torch.float16
+            elif self.settings.model_dtype == "bfloat16":
+                dtype = torch.bfloat16
+
+            model_id_or_path = self.model_id_or_path
+            self._tokenizer = AutoTokenizer.from_pretrained(model_id_or_path)
+            load_kwargs = {
+                "device_map": self.settings.model_device,
+                "torch_dtype": dtype,
+                "low_cpu_mem_usage": True,
+            }
+            if quant_config is not None:
+                load_kwargs["quantization_config"] = quant_config
+
+            self._model = AutoModelForCausalLM.from_pretrained(
+                model_id_or_path,
+                **load_kwargs,
             )
-            dtype = torch.float16
-        elif self.settings.model_dtype == "float16":
-            dtype = torch.float16
-        elif self.settings.model_dtype == "bfloat16":
-            dtype = torch.bfloat16
-
-        model_id_or_path = self.model_id_or_path
-        self._tokenizer = AutoTokenizer.from_pretrained(model_id_or_path)
-        load_kwargs = {
-            "device_map": self.settings.model_device,
-            "torch_dtype": dtype,
-            "low_cpu_mem_usage": True,
-        }
-        if quant_config is not None:
-            load_kwargs["quantization_config"] = quant_config
-
-        self._model = AutoModelForCausalLM.from_pretrained(
-            model_id_or_path,
-            **load_kwargs,
-        )
-        self._torch = torch
-        self._loaded = True
+            self._torch = torch
+            self._loaded = True
 
     async def complete(self, messages: list[dict[str, str]]) -> str:
         chunks = [chunk async for chunk in self.stream_chat(messages)]
         return "".join(chunks)
 
     async def stream_chat(self, messages: list[dict[str, str]]) -> AsyncIterator[str]:
-        self._ensure_loaded()
+        await asyncio.to_thread(self._ensure_loaded)
         from transformers import TextIteratorStreamer
 
         assert self._tokenizer is not None
@@ -117,20 +121,41 @@ class LocalTransformerLLM:
         )
         inputs = self._tokenizer([prompt], return_tensors="pt").to(self._model.device)
         streamer = TextIteratorStreamer(
-            self._tokenizer, skip_prompt=True, skip_special_tokens=True, timeout=30
+            self._tokenizer, skip_prompt=True, skip_special_tokens=True, timeout=60
         )
         kwargs = {
             **inputs,
             "streamer": streamer,
-            "max_new_tokens": self.settings.max_new_tokens,
+            "max_new_tokens": min(512, self.settings.max_new_tokens),
             "temperature": self.settings.temperature,
             "top_p": self.settings.top_p,
             "do_sample": self.settings.temperature > 0,
         }
-        Thread(target=self._model.generate, kwargs=kwargs, daemon=True).start()
-        for text in streamer:
-            yield text
-            await asyncio.sleep(0)
+
+        generation_error: list[Exception] = []
+
+        def run_generation() -> None:
+            try:
+                self._model.generate(**kwargs)
+            except Exception as exc:
+                print(f"[LLM] Error in model.generate: {exc}")
+                generation_error.append(exc)
+
+        Thread(target=run_generation, daemon=True).start()
+
+        # Non-blocking streamer iteration using asyncio.to_thread so ASGI loop is NEVER blocked
+        while True:
+            try:
+                token = await asyncio.to_thread(lambda: next(streamer))
+                yield token
+            except StopIteration:
+                break
+            except Exception as exc:
+                print(f"[LLM] Streamer ended: {exc}")
+                break
+
+        if generation_error:
+            raise RuntimeError(f"Model generation failed: {generation_error[0]}")
 
 
 @lru_cache
