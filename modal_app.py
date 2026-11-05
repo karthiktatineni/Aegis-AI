@@ -285,4 +285,25 @@ def fastapi_app():
             },
         }
 
+    # Quota reset endpoint
+    @aegis_fastapi.post("/api/v1/reset-quota")
+    def reset_quota():
+        today = _today_utc()
+        daily_quota_dict[today] = 0
+        return {"status": "reset", "used_today": 0, "remaining": DAILY_REQUEST_LIMIT}
+
+    # Pre-warm model in background so the first request streams immediately
+    def prewarm_model():
+        try:
+            from app.services.ai.llm import get_llm_provider
+            provider = get_llm_provider()
+            if hasattr(provider, "_ensure_loaded"):
+                print("[MODAL GPU] Pre-loading Mistral 7B weights into T4 VRAM on startup...")
+                provider._ensure_loaded()
+                print("[MODAL GPU] Model pre-loaded and ready for instant streaming!")
+        except Exception as e:
+            print(f"[MODAL GPU] Pre-load warning: {e}")
+
+    threading.Thread(target=prewarm_model, daemon=True).start()
+
     return aegis_fastapi

@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquarePlus, Pin, Search } from "lucide-react";
+import { MessageSquarePlus, Pin, Search, Trash2 } from "lucide-react";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,8 @@ export function ChatSidebar({
   search,
   onSearch,
   onNew,
-  onSelect
+  onSelect,
+  onDelete,
 }: {
   conversations: Conversation[];
   activeId?: string;
@@ -22,6 +23,7 @@ export function ChatSidebar({
   onSearch: (value: string) => void;
   onNew: () => void;
   onSelect: (conversation: Conversation) => void;
+  onDelete?: (conversationId: string) => void;
 }) {
   return (
     <aside className="flex min-h-0 w-full flex-col border-r bg-card md:w-80">
@@ -31,7 +33,7 @@ export function ChatSidebar({
             <p className="text-sm font-semibold">Conversations</p>
             <p className="text-xs text-muted-foreground">{conversations.length} active threads</p>
           </div>
-          <Button size="icon" onClick={onNew}>
+          <Button size="icon" onClick={onNew} title="New conversation">
             <MessageSquarePlus className="size-4" />
             <span className="sr-only">New chat</span>
           </Button>
@@ -48,26 +50,41 @@ export function ChatSidebar({
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {conversations.map((conversation) => (
-          <button
-            type="button"
+          <div
             key={conversation.id}
-            onClick={() => onSelect(conversation)}
             className={cn(
-              "mb-1 flex w-full items-start gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-muted",
+              "group mb-1 flex w-full items-start gap-2 rounded-md px-3 py-2 text-left transition-colors hover:bg-muted cursor-pointer",
               activeId === conversation.id && "bg-muted"
             )}
+            onClick={() => onSelect(conversation)}
           >
-            <div className="mt-1 size-2 rounded-full bg-primary" />
+            <div className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <p className="truncate text-sm font-medium">{conversation.title}</p>
-                {conversation.pinned && <Pin className="size-3 text-accent" />}
+                {conversation.pinned && <Pin className="size-3 text-accent shrink-0" />}
               </div>
               <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
                 {conversation.messages.at(-1)?.content || conversation.summary || "No messages yet"}
               </p>
             </div>
-          </button>
+            {onDelete && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm(`Delete "${conversation.title}"?`)) {
+                    onDelete(conversation.id);
+                  }
+                }}
+                className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-destructive transition-opacity shrink-0 rounded"
+                title="Delete chat"
+              >
+                <Trash2 className="size-3.5" />
+                <span className="sr-only">Delete</span>
+              </button>
+            )}
+          </div>
         ))}
       </div>
     </aside>

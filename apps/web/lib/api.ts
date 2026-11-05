@@ -92,6 +92,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ title }),
     }),
+  deleteConversation: (conversationId: string) =>
+    request<void>(`/chat/conversations/${conversationId}`, { method: "DELETE" }),
   editMessage: (messageId: string, content: string) =>
     request<Message>(`/chat/messages/${messageId}`, {
       method: "PATCH",

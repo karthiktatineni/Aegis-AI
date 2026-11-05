@@ -83,7 +83,7 @@ export function KnowledgeDashboard() {
   }
 
   return (
-    <section className="container grid gap-5 py-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+    <section className="h-full overflow-y-auto container grid gap-5 py-5 lg:grid-cols-[320px_minmax(0,1fr)]">
       <div className="space-y-5">
         <Card>
           <CardHeader>

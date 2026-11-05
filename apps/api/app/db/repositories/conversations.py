@@ -82,6 +82,17 @@ class ConversationRepository(Repository[Conversation]):
         await self.session.flush()
         return message
 
+    async def delete(self, conversation_id: str, user_id: str) -> bool:
+        statement = select(Conversation).where(
+            Conversation.id == conversation_id, Conversation.user_id == user_id
+        )
+        conversation = await self.session.scalar(statement)
+        if not conversation:
+            return False
+        await self.session.delete(conversation)
+        await self.session.flush()
+        return True
+
     async def search_messages(self, user_id: str, query: str) -> Sequence[Message]:
         like = f"%{query}%"
         statement = (

@@ -24,7 +24,7 @@ export default function SettingsPage() {
 
   return (
     <AppShell>
-      <section className="container space-y-5 py-5">
+      <section className="h-full overflow-y-auto container space-y-5 py-5">
         <div className="flex flex-col justify-between gap-3 border-b pb-4 md:flex-row md:items-center">
           <div>
             <h1 className="text-xl font-semibold">Settings</h1>

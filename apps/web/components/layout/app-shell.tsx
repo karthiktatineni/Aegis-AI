@@ -36,10 +36,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen w-screen overflow-hidden bg-background flex">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 border-r bg-card transition-transform lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 w-64 border-r bg-card transition-transform lg:static lg:translate-x-0 shrink-0",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -85,8 +85,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="lg:pl-64">
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:px-6">
+      <div className="flex flex-1 flex-col h-full min-w-0 overflow-hidden">
+        <header className="flex-none flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:px-6">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setOpen((value) => !value)}>
               <Menu className="size-5" />
@@ -109,7 +109,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <ServerStatusGuard />
-        <main className="min-h-[calc(100vh-4rem)]">{children}</main>
+        <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
       </div>
     </div>
   );
