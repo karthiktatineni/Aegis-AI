@@ -153,25 +153,12 @@ def _today_utc() -> str:
 
 def check_daily_quota() -> tuple[bool, int, int]:
     """Returns (is_allowed, used_today, remaining)."""
-    today = _today_utc()
     try:
-        used = int(daily_quota_dict.get(today, 0))
+        from app.core.quota import get_quota_manager
+        status = get_quota_manager().get_status()
+        return not status["is_exceeded"], status["used_today"], status["remaining"]
     except Exception:
-        used = 0
-    remaining = max(0, DAILY_REQUEST_LIMIT - used)
-    return remaining > 0, used, remaining
-
-
-def increment_daily_quota() -> int:
-    """Consumes 1 request from today's budget."""
-    today = _today_utc()
-    try:
-        used = int(daily_quota_dict.get(today, 0))
-    except Exception:
-        used = 0
-    new_count = used + 1
-    daily_quota_dict[today] = new_count
-    return new_count
+        return True, 0, DAILY_REQUEST_LIMIT
 
 
 # Track container launch timestamp for hard 10-minute cutoff
@@ -235,7 +222,7 @@ def fastapi_app():
         allow_headers=["*"],
     )
 
-    # Middleware: Enforce 5 reqs/day quota AND hard 10-minute session lifetime
+    # Middleware: Enforce hard 10-minute session lifetime
     @aegis_fastapi.middleware("http")
     async def credit_guard_middleware(request: Request, call_next):
         # 1. Check hard container lifetime (10 minutes total cutoff)
@@ -243,21 +230,6 @@ def fastapi_app():
         if elapsed >= MAX_CONTAINER_LIFETIME_SECONDS:
             print("[CREDIT GUARD] Reached 10-minute session cap during request. Terminating.")
             os._exit(0)
-
-        # 2. Check 5 requests/day quota on expensive inference endpoints
-        if request.url.path.endswith("/stream") or request.url.path.endswith("/messages") or request.url.path.endswith("/agents/run"):
-            allowed, used, remaining = check_daily_quota()
-            if not allowed:
-                return Response(
-                    content=(
-                        f'{{"detail": "Daily GPU limit reached: Aegis AI is capped at {DAILY_REQUEST_LIMIT} requests '
-                        f'per day to conserve Modal credits ({used}/{DAILY_REQUEST_LIMIT} used today). '
-                        f'Resets at midnight UTC.", "daily_limit": {DAILY_REQUEST_LIMIT}, "used_today": {used}}}'
-                    ),
-                    status_code=429,
-                    media_type="application/json",
-                )
-            increment_daily_quota()
 
         response = await call_next(request)
         return response
@@ -287,10 +259,23 @@ def fastapi_app():
 
     # Quota reset endpoint
     @aegis_fastapi.post("/api/v1/reset-quota")
+    @aegis_fastapi.post("/api/v1/quota/reset")
     def reset_quota():
+        import json
         today = _today_utc()
         daily_quota_dict[today] = 0
-        return {"status": "reset", "used_today": 0, "remaining": DAILY_REQUEST_LIMIT}
+        from app.core.quota import get_quota_manager
+        get_quota_manager().reset_today()
+        # Ensure file on persistent volume is also cleared
+        quota_file = Path("/data/quota_usage.json")
+        if quota_file.exists():
+            try:
+                data = json.loads(quota_file.read_text(encoding="utf-8"))
+                data[today] = 0
+                quota_file.write_text(json.dumps(data), encoding="utf-8")
+            except Exception:
+                pass
+        return {"status": "reset", "limit": 5, "used_today": 0, "remaining": 5}
 
     # Pre-warm model in background so the first request streams immediately
     def prewarm_model():

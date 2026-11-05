@@ -99,12 +99,11 @@ class DailyQuotaManager:
         return self.get_status()
 
     def reset_today(self) -> None:
-        """Convenience method for testing."""
+        """Reset today's usage counter to 0."""
         today = self._today_key()
         data = self._load_data()
-        if today in data:
-            del data[today]
-            self._save_data(data)
+        data[today] = 0
+        self._save_data(data)
 
 
 _quota_manager: DailyQuotaManager | None = None

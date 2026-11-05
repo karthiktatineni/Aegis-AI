@@ -110,9 +110,25 @@ export function ServerStatusGuard() {
             </Badge>
           )}
           {quota?.is_exceeded && (
-            <span className="text-[11px] text-destructive font-semibold flex items-center gap-1">
-              <AlertCircle className="h-3 w-3" /> Limit reached
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-destructive font-semibold flex items-center gap-1">
+                <AlertCircle className="h-3 w-3" /> Limit reached
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    await fetch(buildApiUrl("/quota/reset"), { method: "POST" });
+                    void check();
+                  } catch {}
+                }}
+                className="h-5 px-1.5 text-[10px] text-destructive hover:bg-destructive/10 border-destructive/30"
+                title="Reset quota to 0/5"
+              >
+                Reset
+              </Button>
+            </div>
           )}
         </div>
       </div>

@@ -112,6 +112,7 @@ export const api = {
     }),
   modelStatus: () => request<ModelStatus>("/models"),
   getQuota: () => fetchDailyQuota(),
+  resetQuota: () => request<QuotaInfo>("/quota/reset", { method: "POST" }),
 };
 
 export async function streamChat(
