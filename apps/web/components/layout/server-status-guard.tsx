@@ -5,7 +5,7 @@ import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { checkServerHealth, fetchDailyQuota } from "@/lib/api";
+import { api, checkServerHealth, fetchDailyQuota } from "@/lib/api";
 import type { QuotaInfo } from "@/types/api";
 
 export function ServerStatusGuard() {
@@ -119,7 +119,7 @@ export function ServerStatusGuard() {
                 size="sm"
                 onClick={async () => {
                   try {
-                    await fetch(buildApiUrl("/quota/reset"), { method: "POST" });
+                    await api.resetQuota();
                     void check();
                   } catch {}
                 }}
