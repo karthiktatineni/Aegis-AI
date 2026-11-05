@@ -1,8 +1,33 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
 from app.models import Message
 from app.schemas.chat import Citation
+
+
+SYSTEM_PROMPT = """You are Aegis AI, a helpful, intelligent private AI assistant.
+Respond naturally, concisely, and conversationally.
+For casual greetings (such as "hello", "hi", "hey"), reply with a brief, friendly greeting (e.g. "Hello! How can I help you today?").
+Do NOT state the date, time, system status, or environment configuration unless specifically asked by the user.
+
+Conversation Continuity:
+- Maintain dialogue continuity across turns.
+- Answer follow-up requests and pronouns ("it", "this", "that", "the code for it") based on what was discussed in the immediately preceding message.
+
+Knowledge & Sources:
+- Use retrieved long-term memory and knowledge documents ONLY when directly relevant to the user's specific question.
+- Cite sources accurately when retrieved knowledge documents or live news updates are provided."""
+
+
+def is_temporal_query(query: str) -> bool:
+    """Detect if query specifically asks about date, time, day, or clock."""
+    q = query.lower()
+    time_keywords = [
+        "time", "date", "day", "clock", "timezone", "ist", "gmt", "utc",
+        "what time", "what is the time", "what date", "what is today", "what day"
+    ]
+    return any(kw in q for kw in time_keywords)
 
 
 def get_current_clock_info() -> str:
@@ -17,25 +42,6 @@ def get_current_clock_info() -> str:
     )
 
 
-def get_system_prompt() -> str:
-    clock = get_current_clock_info()
-    return f"""You are Aegis AI, a private, intelligent, and highly capable AI assistant.
-
-Real-Time Clock & Grounding:
-{clock}
-India observes a single timezone: Indian Standard Time (IST, UTC+5:30). If the user asks for the current date or time (especially in India), answer with the exact real-time clock above.
-
-Chat Continuity & Short-Term Context:
-- Maintain conversation continuity across turns.
-- Always prioritize the active conversation history when answering follow-up questions, pronouns ("it", "this", "that", "the code for it"), or continuous topics.
-- Answer follow-up requests in the context of the immediately preceding dialogue.
-
-Tone & Knowledge:
-- Be concise, direct, helpful, and natural.
-- Use retrieved long-term memory and knowledge documents ONLY when directly relevant to the user's specific question.
-- Cite sources when retrieved knowledge documents or live news updates are provided."""
-
-
 def build_chat_prompt(
     messages: list[Message],
     user_message: str,
@@ -44,6 +50,13 @@ def build_chat_prompt(
     web_results: list[str] | None = None,
 ) -> list[dict[str, str]]:
     context_parts: list[str] = []
+
+    # Only inject real-time clock when the user is actually asking about time/date
+    if is_temporal_query(user_message):
+        context_parts.append(
+            f"Reference Clock (Use ONLY to answer date/time questions):\n{get_current_clock_info()}"
+        )
+
     if web_results:
         context_parts.append("Real-Time Web & Live News Updates:\n" + "\n".join(f"- {w}" for w in web_results))
     if memories:
@@ -55,7 +68,7 @@ def build_chat_prompt(
         ]
         context_parts.append("Retrieved knowledge:\n" + "\n".join(source_lines))
 
-    system = get_system_prompt()
+    system = SYSTEM_PROMPT
     if context_parts:
         system = f"{system}\n\n" + "\n\n".join(context_parts)
 
