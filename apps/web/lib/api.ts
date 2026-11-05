@@ -1,7 +1,7 @@
 import type { Collection, Conversation, Message, ModelStatus, QuotaInfo, ServerHealth } from "@/types/api";
 
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "https://doubt-jake-continuously-achievement.trycloudflare.com/api/v1";
+  process.env.NEXT_PUBLIC_API_URL ?? "https://karthiktatineni643--aegis-ai-fastapi-app.us-east.modal.run/api/v1";
 
 export function buildApiUrl(path: string) {
   const normalized = path.startsWith("/") ? path : `/${path}`;

@@ -61,6 +61,16 @@ class MemoryService:
         )
 
     async def retrieve_relevant(self, user_id: str, query: str, limit: int = 5) -> list[str]:
+        # Skip memory retrieval for casual greetings and short conversational pleasantries
+        cleaned_query = query.strip().lower()
+        casual_greetings = {
+            "hello", "hi", "hey", "hola", "greetings", "good morning",
+            "good evening", "good afternoon", "howdy", "sup", "yo",
+            "hello!", "hi!", "hey!", "what's up", "whats up"
+        }
+        if cleaned_query in casual_greetings or len(cleaned_query) <= 2:
+            return []
+
         memories = await self.repository.list_memories(user_id, scope="long_term")
         if not memories:
             return []
@@ -71,8 +81,12 @@ class MemoryService:
 
         scored: list[tuple[float, int, str]] = []
         for index, memory in enumerate(memories):
-            combined_text = f"{memory.summary} {memory.content}".lower()
-            tokens = set(re.findall(r"\w+", combined_text))
+            # Filter out legacy development/mock instruction strings
+            lowered_mem = f"{memory.summary} {memory.content}".lower()
+            if "switch llm_provider" in lowered_mem or "local development response" in lowered_mem:
+                continue
+
+            tokens = set(re.findall(r"\w+", lowered_mem))
             token_overlap = len(query_tokens.intersection(tokens))
 
             # Combine token overlap with embedding semantic similarity
@@ -81,9 +95,11 @@ class MemoryService:
                 mem_embeddings = self.embedding_service.embed([memory.content[:500]])
                 if mem_embeddings:
                     similarity = cosine_similarity(query_vector, mem_embeddings[0])
-                    score += max(0.0, similarity) * 2.0
+                    # Only add similarity if it is a confident match (> 0.5)
+                    if similarity > 0.5:
+                        score += similarity * 2.0
 
-            if score > 0.1:
+            if score >= 1.0:
                 scored.append((score, index, memory.summary))
 
         ranked = sorted(scored, key=lambda item: (item[0], -item[1]), reverse=True)
